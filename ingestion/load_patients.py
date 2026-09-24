@@ -1,5 +1,5 @@
-from utils import read_csv, insert_rows
-from db import get_connection
+from ingestion.utils import read_csv, insert_rows
+from ingestion.db import get_connection
 
 csv_path = r"C:\Users\27810\Desktop\projects\synthea\output\csv\patients.csv"
 
