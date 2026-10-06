@@ -39,12 +39,16 @@ def validate_row_count(expected_count, actual_count, table_name):
 
 csv_path = r"C:\Users\27810\Desktop\projects\synthea\output\csv\patients.csv"
 encounters_csv_path = r"C:\Users\27810\Desktop\projects\synthea\output\csv\encounters.csv"
+conditions_csv_path = r"C:\Users\27810\Desktop\projects\synthea\output\csv\conditions.csv"
 
 patients = read_csv(csv_path)
 expected_patient_count = len(patients)
 
 encounters = read_csv(encounters_csv_path)
 expected_encounter_count = len(encounters)
+
+conditions = read_csv(conditions_csv_path)
+expected_condition_count = len(conditions)
 
 # Database connection
 
@@ -85,6 +89,20 @@ validate_row_count(
     "Encounter"
 )
 
+# Conditions
+
+cursor.execute("SELECT COUNT(*) FROM raw.conditions;")
+
+result = cursor.fetchone()
+
+actual_condition_count = result[0]
+
+validate_row_count(
+    expected_condition_count,
+    actual_condition_count,
+    "Condition"
+)
+
 # --- NULL validation ---
 
 # Patients
@@ -120,6 +138,23 @@ null_encounter_id_count = result[0]
 validate_zero_count(
     null_encounter_id_count,
     "NULL encounter ids"
+)
+# Conditions
+
+cursor.execute("""
+    SELECT COUNT(*)
+    FROM raw.conditions
+    WHERE patient IS NULL
+        OR encounter IS NULL;
+ """)
+
+result = cursor.fetchone()
+
+null_condition_reference_count = result [0]
+
+validate_zero_count(
+    null_condition_reference_count,
+    "conditions with NULL patient or encounter references"
 )
 
 # --- Duplicate validation ---
@@ -157,6 +192,22 @@ validate_empty_list(
     "duplicate encounter ids"
 )
 
+# Conditions
+
+cursor.execute("""
+    SELECT patient, encounter, code, COUNT(*)
+    FROM raw.conditions
+    GROUP BY patient, encounter, code
+    HAVING COUNT(*) > 1;
+""")
+
+duplicate_conditions = cursor.fetchall()
+
+validate_empty_list(
+    duplicate_conditions,
+    "duplicate conditions"
+)
+
 # --- Referential integrity validation ---
 
 # Encounters -> Patients
@@ -178,6 +229,43 @@ validate_zero_count(
     "orphaned encounters"
 )
 
+# conditions -> patient
+
+cursor.execute("""
+    SELECT COUNT(*)
+    FROM raw.conditions c
+    LEFT JOIN raw.patients p
+        ON c.patient = p.id
+    WHERE p.id IS NULL;
+""")
+
+result = cursor.fetchone()
+
+orphaned_condition_patient_count = result[0]
+
+validate_zero_count(
+    orphaned_condition_patient_count,
+    "conditions with orphaned patient references"
+)
+
+# conditions -> encounters
+cursor.execute("""
+    SELECT COUNT(*)
+    FROM raw.conditions c
+    LEFT JOIN raw.encounters e
+        ON  c.encounter = e.id
+    WHERE e.id IS NULL;
+""")
+
+result = cursor.fetchone()
+
+orphaned_condition_encounter_count = result[0]
+
+validate_zero_count(
+    orphaned_condition_encounter_count,
+    "conditions with orphaned encounter references"
+)
+
 # --- Date validation ---
 
 # Encounters
@@ -195,6 +283,23 @@ invalid_date_count = result[0]
 validate_zero_count(
     invalid_date_count,
     "invalid dates"
+)
+
+# Conditions
+
+cursor.execute("""
+               SELECT  COUNT(*)
+               FROM raw.conditions
+               WHERE stop_date < start_date;
+""")
+
+result = cursor.fetchone()
+
+invalid_condition_date_count = result[0]
+
+validate_zero_count(
+    invalid_condition_date_count,
+    "conditions with invalid dates"
 )
 
 # Cleanup
